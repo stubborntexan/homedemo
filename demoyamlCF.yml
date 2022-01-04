@@ -1,0 +1,134 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: CloudFormation Template
+Parameters:
+  LabFinal:
+    Type: String
+    Default: 10.10.0.0/16
+  Pub1377SubnetRange:
+    Type: String
+    Default: 10.10.0.0/24
+  AmazonLinuxAMIID:
+    Type: 'AWS::EC2::Image::Id'
+    Default: ami-0dfbbebc9419ac958
+  InstanceType:
+    Type: String
+    Default: t2.micro
+    AllowedValues:
+      - t2.micro
+      - t3.micro
+Resources:
+  Bucket:
+    Type: 'AWS::S3::Bucket'
+    Properties:
+      BucketName: cadajeag-itnw-final
+
+  Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: t2.micro
+      ImageId: !Ref AmazonLinuxAMIID
+#      SubnetId: !Ref PublicSubnet
+#      SecurityGroupIds:
+      NetworkInterfaces:
+        - GroupSet:
+            - !Ref AppSecurityGroup
+          SubnetId: !Ref PublicSubnet
+          DeviceIndex: 0
+      Tags:
+        - Key: Name
+          Value: App Server
+
+
+  LabVPC:
+    Type: 'AWS::EC2::VPC'
+    Properties:
+      CidrBlock: !Ref LabFinal
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: VPCDemo
+
+  IGW:
+    Type: 'AWS::EC2::InternetGateway'
+    Properties:
+      Tags:
+        - Key: Name
+          Value: IGWDemo
+
+  VPCtoIGWConnection:
+    Type: 'AWS::EC2::VPCGatewayAttachment'
+    DependsOn:
+      - IGW
+      - LabVPC
+    Properties:
+      InternetGatewayId: !Ref IGW
+      VpcId: !Ref LabVPC
+
+  PublicRouteTable:
+    Type: 'AWS::EC2::RouteTable'
+    Properties:
+      VpcId: !Ref LabVPC
+      Tags:
+        - Key: Name
+          Value: Public Route Table
+  PublicRoute:
+    Type: 'AWS::EC2::Route'
+    DependsOn:
+      - PublicRouteTable
+      - IGW
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref IGW
+      RouteTableId: !Ref PublicRouteTable
+
+  PublicSubnet:
+    Type: 'AWS::EC2::Subnet'
+    DependsOn:
+      - LabVPC
+    Properties:
+      VpcId: !Ref LabVPC
+      MapPublicIpOnLaunch: true
+      CidrBlock: !Ref LabFinal
+      Tags:
+        - Key: Name
+          Value: Public Subnet
+
+  PublicRouteTableAssociation:
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    DependsOn:
+      - PublicRouteTable
+      - PublicSubnet
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref PublicSubnet
+  AppSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    DependsOn: LabVPC
+    Properties:
+      GroupName: Final1377SG
+      GroupDescription: SG for Final
+      VpcId: !Ref LabVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: Final1377SG
+
+  ElasticIP:
+    Type: 'AWS::EC2::EIP'
+    Properties:
+      InstanceId: !Ref Instance
+
+Outputs:
+  LabVPCDefaultSecurityGroup:
+    Value: !Sub '${LabVPC.DefaultSecurityGroup}'
+  ServerIP:
+    Value: !Ref ElasticIP
+  SeverID:
+    Value: !Ref Instance
+  LabVPC:
+    Value: !Ref AppSecurityGroup
